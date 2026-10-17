@@ -1,0 +1,55 @@
+# Render Blueprint — deploy via Dashboard > New > Blueprint, pointing at this repo.
+# Docs: https://render.com/docs/blueprint-spec
+#
+# Pehle deploy ke baad: dashboard me DATABASE_SYNC=true karke ek dafa deploy
+# karo (tables banengi), phir false karke dobara deploy karo. Phir shell me:
+#   npm run seed
+services:
+  - type: web
+    name: al-ucaaz-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Render injects PORT automatically — do not set it here.
+      - key: DATABASE_URL
+        sync: false # paste the Neon connection string (with ?sslmode=require) in the dashboard
+      - key: DATABASE_SYNC
+        value: 'false' # keep false in production; sync schema from local when needed
+      - key: DATABASE_LOGGING
+        value: 'false'
+      - key: JWT_ACCESS_SECRET
+        generateValue: true # Render generates a random signing secret on first deploy
+      - key: JWT_ACCESS_EXPIRES_IN
+        value: '15m'
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: '7d'
+      - key: OTP_SECRET
+        generateValue: true
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: '587'
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: SMTP_FROM
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false # frontend domain, e.g. https://al-ucaaz.com
+      - key: SUPER_ADMIN_EMAIL
+        sync: false
+      - key: SUPER_ADMIN_PASSWORD
+        sync: false
