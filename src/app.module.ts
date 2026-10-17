@@ -69,12 +69,12 @@ if (!observeEnabled) {
     AuthModule,
     ...(observeEnabled
       ? [
-        ObserveModule.forRoot({
-          appKey: observeAppKey,
-          appSecret: observeAppSecret,
-          serviceId: 'al-ucaaz-api',
-        }),
-      ]
+          ObserveModule.forRoot({
+            appKey: observeAppKey,
+            appSecret: observeAppSecret,
+            serviceId: 'al-ucaaz-api',
+          }),
+        ]
       : []),
   ],
   controllers: [HealthController],
@@ -84,4 +84,4 @@ if (!observeEnabled) {
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
-export class AppModule { }
+export class AppModule {}
