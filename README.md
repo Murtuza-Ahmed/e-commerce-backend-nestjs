@@ -182,6 +182,10 @@ breaking.
 
 - General uploads: `POST /api/uploads` → take the returned `url` → store it wherever
   you need it (product images in a later phase, for example).
+- Image validation is **content-based, not extension-based**: the server reads the
+  file's magic bytes to confirm it's a real JPEG, PNG, GIF, WebP or BMP.
+  A `.jfif` photo (JPEG data under the hood) uploads fine even when the
+  client can't label its type — and a renamed `.exe` never sneaks through.
 - Avatars: `PATCH /api/users/me/avatar` handles upload **and** cleanup — replacing an
   avatar deletes the previous file from Cloudinary, so no orphans accumulate.
   Deleting a user (`DELETE /api/users/:id`) also removes their Cloudinary avatar.

@@ -11,6 +11,7 @@ import { User } from './entities/user.entity';
 import { Role } from '../rbac/entities/role.entity';
 import { AuthUser } from '../common/decorators';
 import { CloudinaryService } from '../uploads/cloudinary.service';
+import { assertImageBuffer } from '../uploads/image-type';
 import {
   comparePassword,
   hashPassword,
@@ -260,6 +261,8 @@ export class UsersService {
     user: User,
     file: Express.Multer.File,
   ): Promise<void> {
+    // Asal image check — magic bytes se (`.jfif` jaisi files bhi chalengi).
+    assertImageBuffer(file.buffer);
     const { url, publicId } = await this.cloudinary.uploadImage(file.buffer, {
       folder: 'al-ucaaz/avatars',
     });

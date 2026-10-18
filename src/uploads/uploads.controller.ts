@@ -15,6 +15,7 @@ import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../common/decorators';
 import { CloudinaryService } from './cloudinary.service';
 import { imageUploadOptions } from './multer.config';
+import { assertImageBuffer } from './image-type';
 import { resolveUploadFolder } from './upload-folder';
 import { UploadDto } from './dto/upload.dto';
 
@@ -53,6 +54,8 @@ export class UploadsController {
         "'file' field me image bhejen (multipart/form-data).",
       );
     }
+    // Asal image check — magic bytes se (extension/mimetype par bharosa nahi).
+    assertImageBuffer(file.buffer);
     // Har upload al-ucaaz/ root folder ke andar — project ki koi cheez bahar nahi.
     return this.cloudinary.uploadImage(file.buffer, {
       folder: resolveUploadFolder(dto.folder),

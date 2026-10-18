@@ -359,12 +359,46 @@ describeIfDb('Phase 1 — Users/Auth/OTP/RBAC (e2e)', () => {
   });
 
   it('PATCH /me: form-data me avatar file bhi chalti hai (dual-mode)', async () => {
-    // Cloudinary creds nahi — saaf 400 aana chahiye (file path wired hai).
-    await api()
+    // Cloudinary creds nahi — type check pass karke wahan tak pohanchna chahiye.
+    const res = await api()
       .patch('/api/users/me')
       .set('Authorization', `Bearer ${customerAccess}`)
       .field('name', 'E2E With Pic')
-      .attach('avatar', Buffer.from('fake-image'), 'avatar.png')
+      .attach(
+        'avatar',
+        Buffer.from([
+          0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00,
+          0x01,
+        ]),
+        'avatar.jfif',
+      )
       .expect(400);
+    expect(res.body.message).toMatch(/configure/i);
+  });
+
+  it('uploads: ghalat file (non-image) seedha reject hoti hai', async () => {
+    const res = await api()
+      .post('/api/uploads')
+      .set('Authorization', `Bearer ${superAccess}`)
+      .attach('file', Buffer.from('ye koi image nahi'), 'test.txt')
+      .expect(400);
+    expect(res.body.message).toMatch(/image/i);
+  });
+
+  it('uploads: .jfif (JPEG magic bytes) type-check pass karti hai', async () => {
+    // Cloudinary creds nahi — type check pass karke wahan tak pohanchna chahiye.
+    const res = await api()
+      .post('/api/uploads')
+      .set('Authorization', `Bearer ${superAccess}`)
+      .attach(
+        'file',
+        Buffer.from([
+          0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00,
+          0x01,
+        ]),
+        'images.jfif',
+      )
+      .expect(400);
+    expect(res.body.message).toMatch(/configure/i);
   });
 });

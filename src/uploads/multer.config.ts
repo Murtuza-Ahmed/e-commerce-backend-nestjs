@@ -1,30 +1,14 @@
 import { memoryStorage } from 'multer';
-import { BadRequestException } from '@nestjs/common';
-
-/** Sirf images — baqi files seedha reject. */
-export const imageFileFilter = (
-  _req: unknown,
-  file: Express.Multer.File,
-  cb: (error: Error | null, acceptFile: boolean) => void,
-): void => {
-  if (!file.mimetype.startsWith('image/')) {
-    cb(
-      new BadRequestException(
-        `Sirf image files allowed hain (mila: ${file.mimetype}).`,
-      ),
-      false,
-    );
-    return;
-  }
-  cb(null, true);
-};
 
 /**
  * Memory storage (buffer seedha Cloudinary jata hai, disk par nahi),
- * 5MB limit. FileInterceptor me spread karke use karo.
+ * 5MB limit.
+ *
+ * NOTE: image type ka check yahan mimetype se NAHI hota — client ka bheja
+ * type jhoota ya unknown ho sakta hai (`.jfif` ka masla). Asal check
+ * `assertImageBuffer()` (image-type.ts) se hota hai, buffer milne ke baad.
  */
 export const imageUploadOptions = {
   storage: memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: imageFileFilter,
 };

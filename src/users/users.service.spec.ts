@@ -47,7 +47,11 @@ function baseUser() {
   };
 }
 
-const fakeFile = { buffer: Buffer.from('img') } as Express.Multer.File;
+const fakeFile = {
+  buffer: Buffer.from([
+    0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01,
+  ]),
+} as Express.Multer.File;
 const actor = {
   id: 'admin-1',
   email: 'a@x.com',
