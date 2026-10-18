@@ -27,6 +27,9 @@ A phase-built e-commerce backend — engineered the way real production systems 
 | Cloudinary uploads | `POST /api/uploads` — images only, 5 MB max, returns `{url, publicId}` |
 | User avatars | `PATCH /api/users/me/avatar` — any user can set their profile picture; the old image is auto-deleted from Cloudinary |
 | New permissions | `uploads:create`, `uploads:delete` — staff only for the upload endpoints; avatars are self-service |
+| Audit trail | Every staff action on users/roles logged to `audit_logs` (append-only, super admin reads via `GET /api/audit-logs`) |
+| Email change | Logged-in users can change email via OTP to the new address (all sessions revoked, old email notified) |
+| OTP hygiene | Expired OTP rows purged nightly by an automatic cron (02:00 server time) |
 
 ---
 
@@ -120,6 +123,8 @@ Every route lives under `/api`. Routes marked 🔒 require `Authorization: Beare
 | POST | `/reset-password` | `{email, otp, newPassword}` — revokes all sessions |
 | POST | `/forgot-email` | `{phone}` → SMS OTP |
 | POST | `/recover-email` | `{phone, otp}` → returns a masked email (`j***@example.com`) |
+| POST | `/change-email/request` 🔒 | Sends an OTP to the **new** email address |
+| POST | `/change-email/confirm` 🔒 | `{newEmail, otp}` → email changed, all sessions logged out, old email notified |
 
 ### Users — `/api/users` 🔒
 
@@ -149,6 +154,18 @@ Every route lives under `/api`. Routes marked 🔒 require `Authorization: Beare
 
 `GET /permissions` · `GET /roles` · `GET /roles/:id` · `POST /roles` ·
 `PATCH /roles/:id` · `PUT /roles/:id/permissions` · `DELETE /roles/:id`
+
+### Audit trail — `/api/audit-logs` 🔒 (super admin)
+
+Every staff action on users and roles is recorded — who did what, to whom, and when.
+Append-only: entries are never updated or deleted.
+
+| Method | Route | Permission | Notes |
+|---|---|---|---|
+| GET | `/` | `audit:read` | Paginated (`page`, `limit`); filter by `action` (e.g. `users.delete`), `actor` (email), `targetId` |
+
+Logged actions: `users.create`, `users.update`, `users.set-role`, `users.set-active`,
+`users.delete`, `roles.create`, `roles.update`, `roles.set-permissions`, `roles.delete`.
 
 ### Health
 

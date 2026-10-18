@@ -280,6 +280,25 @@ describeIfDb('Phase 1 — Users/Auth/OTP/RBAC (e2e)', () => {
       .expect(200);
   });
 
+  it('audit: super_admin trail parh sakta hai, customer nahi (403)', async () => {
+    const res = await api()
+      .get('/api/audit-logs')
+      .query({ action: 'users.delete', targetId: adminId })
+      .set('Authorization', `Bearer ${superAccess}`)
+      .expect(200);
+    expect(res.body.total).toBeGreaterThanOrEqual(1);
+    expect(res.body.data[0]).toMatchObject({
+      action: 'users.delete',
+      targetType: 'user',
+      targetId: adminId,
+    });
+
+    await api()
+      .get('/api/audit-logs')
+      .set('Authorization', `Bearer ${customerAccess}`)
+      .expect(403);
+  });
+
   it('forgot-password -> reset-password -> naye password se login', async () => {
     await api()
       .post('/api/auth/forgot-password')
@@ -400,5 +419,57 @@ describeIfDb('Phase 1 — Users/Auth/OTP/RBAC (e2e)', () => {
       )
       .expect(400);
     expect(res.body.message).toMatch(/configure/i);
+  });
+
+  it('change-email: request -> ghalat OTP 400 -> sahi OTP par email change', async () => {
+    // Self-contained: apna user banao taake shared state par inhisar na ho.
+    const SC_EMAIL = `sc${Date.now()}@e2e.test`;
+    const SC_PASS = 'ScPass1234';
+    const NEW_EMAIL = `scnew${Date.now()}@e2e.test`;
+    await api()
+      .post('/api/auth/signup')
+      .send({ name: 'SC', email: SC_EMAIL, password: SC_PASS })
+      .expect(201);
+    const scCode = await otpService.issue(SC_EMAIL, 'email_verification');
+    const scLogin = await api()
+      .post('/api/auth/verify-email')
+      .send({ email: SC_EMAIL, otp: scCode })
+      .expect(200);
+    const scToken: string = scLogin.body.accessToken;
+
+    // Naye email par OTP bhejo
+    await api()
+      .post('/api/auth/change-email/request')
+      .set('Authorization', `Bearer ${scToken}`)
+      .send({ newEmail: NEW_EMAIL })
+      .expect(200);
+
+    // Ghalat OTP reject
+    await api()
+      .post('/api/auth/change-email/confirm')
+      .set('Authorization', `Bearer ${scToken}`)
+      .send({ newEmail: NEW_EMAIL, otp: '000000' })
+      .expect(400);
+
+    // Sahi OTP par email change (saari sessions logout)
+    const code = await otpService.issue(NEW_EMAIL, 'email_change');
+    const res = await api()
+      .post('/api/auth/change-email/confirm')
+      .set('Authorization', `Bearer ${scToken}`)
+      .send({ newEmail: NEW_EMAIL, otp: code })
+      .expect(200);
+    expect(res.body.email).toBe(NEW_EMAIL);
+
+    // Purane email se login nahi, naye se haan
+    await api()
+      .post('/api/auth/login')
+      .send({ email: SC_EMAIL, password: SC_PASS })
+      .expect(401);
+    const login = await api()
+      .post('/api/auth/login')
+      .send({ email: NEW_EMAIL, password: SC_PASS })
+      .expect(200);
+    expect(login.body.user.email).toBe(NEW_EMAIL);
+    expect(login.body.user.emailVerified).toBe(true);
   });
 });

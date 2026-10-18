@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { createObserveModule } from '@nestjs/observe';
 import { validateEnv } from './config/env.validation';
 import { sslForDatabaseUrl } from './config/db-ssl';
@@ -17,6 +18,7 @@ import { RbacModule } from './rbac/rbac.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { AuditModule } from './audit/audit.module';
 
 /** NestJS Observe — official observability SDK (tracing, metrics, errors). */
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
@@ -43,6 +45,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       validate: validateEnv,
     }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60_000, limit: 120 }]),
+    ScheduleModule.forRoot(), // OTP cleanup jaisi nightly jobs ke liye
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -65,6 +68,7 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     UsersModule,
     AuthModule,
     UploadsModule,
+    AuditModule,
   ],
   controllers: [HealthController],
   providers: [

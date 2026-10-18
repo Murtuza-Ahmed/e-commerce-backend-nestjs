@@ -4,13 +4,14 @@ import { Role } from './entities/role.entity';
 import { Permission } from './entities/permission.entity';
 import { RbacService } from './rbac.service';
 import { RbacController } from './rbac.controller';
+import { AuditModule } from '../audit/audit.module';
 
 /**
  * TypeOrmModule export hai taake UsersModule Role repository
  * inject kar sake (bina circular dependency ke).
  */
 @Module({
-  imports: [TypeOrmModule.forFeature([Role, Permission])],
+  imports: [TypeOrmModule.forFeature([Role, Permission]), AuditModule],
   controllers: [RbacController],
   providers: [RbacService],
   exports: [RbacService, TypeOrmModule],

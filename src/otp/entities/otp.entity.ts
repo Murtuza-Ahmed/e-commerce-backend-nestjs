@@ -9,7 +9,8 @@ import {
 export type OtpPurpose =
   | 'email_verification'
   | 'password_reset'
-  | 'email_recovery';
+  | 'email_recovery'
+  | 'email_change';
 
 /**
  * OTP record. Code plain kabhi store nahi hota — sirf HMAC-SHA256 hash.

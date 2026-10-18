@@ -12,6 +12,7 @@ import { Role } from '../rbac/entities/role.entity';
 import { AuthUser } from '../common/decorators';
 import { CloudinaryService } from '../uploads/cloudinary.service';
 import { assertImageBuffer } from '../uploads/image-type';
+import { AuditService } from '../audit/audit.service';
 import {
   comparePassword,
   hashPassword,
@@ -49,6 +50,7 @@ export class UsersService {
     @InjectRepository(Role)
     private readonly roles: Repository<Role>,
     private readonly cloudinary: CloudinaryService,
+    private readonly audit: AuditService,
   ) {}
 
   // ---------- internal helpers ----------
@@ -353,6 +355,14 @@ export class UsersService {
       await this.users.save(saved);
     }
     saved.role = role;
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'users.create',
+      targetType: 'user',
+      targetId: saved.id,
+      details: { email, role: role.name, withAvatar: !!avatar },
+    });
     return this.toSafeUser(saved);
   }
 
@@ -372,7 +382,16 @@ export class UsersService {
       await this.assertPhoneFree(phone, id);
       user.phone = phone;
     }
-    return this.toSafeUser(await this.users.save(user));
+    const saved = await this.users.save(user);
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'users.update',
+      targetType: 'user',
+      targetId: saved.id,
+      details: { email: saved.email, withAvatar: !!avatar },
+    });
+    return this.toSafeUser(saved);
   }
 
   async setRole(
@@ -390,7 +409,16 @@ export class UsersService {
     }
     user.role = role;
     user.roleId = role.id;
-    return this.toSafeUser(await this.users.save(user));
+    const saved = await this.users.save(user);
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'users.set-role',
+      targetType: 'user',
+      targetId: saved.id,
+      details: { email: saved.email, role: role.name },
+    });
+    return this.toSafeUser(saved);
   }
 
   async setActive(
@@ -407,7 +435,16 @@ export class UsersService {
     this.assertCanManage(actor, user);
     user.isActive = isActive;
     if (!isActive) user.refreshTokenHash = null; // foran logout
-    return this.toSafeUser(await this.users.save(user));
+    const saved = await this.users.save(user);
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'users.set-active',
+      targetType: 'user',
+      targetId: saved.id,
+      details: { email: saved.email, isActive },
+    });
+    return this.toSafeUser(saved);
   }
 
   async deleteUser(id: string, actor: AuthUser): Promise<{ message: string }> {
@@ -422,6 +459,14 @@ export class UsersService {
         .deleteImage(user.avatarPublicId)
         .catch(() => undefined);
     }
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'users.delete',
+      targetType: 'user',
+      targetId: user.id,
+      details: { email: user.email, role: user.role.name },
+    });
     await this.users.remove(user);
     return { message: 'User delete ho gaya.' };
   }
@@ -436,6 +481,18 @@ export class UsersService {
     await this.users.update(id, {
       passwordHash: await hashPassword(newPassword),
       refreshTokenHash: null, // saari sessions logout
+    });
+  }
+
+  /**
+   * Email change — naya email OTP se verify ho chuka hota hai, is liye
+   * emailVerified=true. Sensitive action: saari sessions logout.
+   */
+  async setEmail(id: string, email: string): Promise<void> {
+    await this.users.update(id, {
+      email: email.trim().toLowerCase(),
+      emailVerified: true,
+      refreshTokenHash: null,
     });
   }
 

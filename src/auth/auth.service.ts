@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -15,10 +16,12 @@ import { SmsService } from '../sms/sms.service';
 import { comparePassword, verifyTokenHash } from '../common/crypto';
 import { AuthUser } from '../common/decorators';
 import {
+  ConfirmEmailChangeDto,
   ForgotEmailDto,
   ForgotPasswordDto,
   LoginDto,
   RecoverEmailDto,
+  RequestEmailChangeDto,
   ResendOtpDto,
   ResetPasswordDto,
   SignupDto,
@@ -259,6 +262,65 @@ export class AuthService {
     // Poora email nahi — masked (real-world pattern).
     const [local, domain] = user.email.split('@');
     return { email: `${local[0]}***@${domain}` };
+  }
+
+  // ---------- email change (logged-in user) ----------
+
+  /**
+   * Naye email par OTP bhejo. Email tabhi change hoga jab user us code
+   * se naye email ki milkiyat sabit kare.
+   */
+  async requestEmailChange(
+    userId: string,
+    dto: RequestEmailChangeDto,
+  ): Promise<{ message: string; email: string }> {
+    const email = dto.newEmail.trim().toLowerCase();
+    const me = await this.users.getProfile(userId);
+    if (email === me.email) {
+      throw new BadRequestException('Ye email pehle se apka hai.');
+    }
+    if (await this.users.findByEmail(email)) {
+      throw new ConflictException('Ye email pehle se registered hai.');
+    }
+
+    const code = await this.otp.issue(email, 'email_change');
+    await this.mail.sendOtpEmail(email, code, 'email_change', this.otp.ttl);
+    this.logger.log(`Email change requested: ${me.email} -> ${email}`);
+    return {
+      message:
+        'Naye email par verification code bheja gaya hai. Code darj karke email change confirm karen.',
+      email,
+    };
+  }
+
+  async confirmEmailChange(
+    userId: string,
+    dto: ConfirmEmailChangeDto,
+  ): Promise<{ message: string; email: string }> {
+    const email = dto.newEmail.trim().toLowerCase();
+    await this.otp.verify(email, 'email_change', dto.otp);
+
+    const me = await this.users.getProfile(userId);
+    if (email === me.email) {
+      throw new BadRequestException('Ye email pehle se apka hai.');
+    }
+    if (await this.users.findByEmail(email)) {
+      throw new ConflictException('Ye email pehle se registered hai.');
+    }
+
+    const oldEmail = me.email;
+    await this.users.setEmail(userId, email);
+    // Purane email par ittila — hijack ki surat me malik ko khabar ho.
+    await this.mail
+      .sendEmailChangedNotice(oldEmail, email)
+      .catch(() => undefined);
+    this.logger.log(
+      `Email changed: ${oldEmail} -> ${email} (sessions logged out)`,
+    );
+    return {
+      message: 'Email change ho gaya. Naye email se dobara login karen.',
+      email,
+    };
   }
 
   // ---------- tokens ----------

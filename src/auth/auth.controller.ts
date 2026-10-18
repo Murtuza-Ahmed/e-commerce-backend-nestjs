@@ -4,10 +4,12 @@ import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { CurrentUser, Public } from '../common/decorators';
 import {
+  ConfirmEmailChangeDto,
   ForgotEmailDto,
   ForgotPasswordDto,
   LoginDto,
   RecoverEmailDto,
+  RequestEmailChangeDto,
   ResendOtpDto,
   ResetPasswordDto,
   SignupDto,
@@ -99,5 +101,29 @@ export class AuthController {
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   recoverEmail(@Body() dto: RecoverEmailDto) {
     return this.auth.recoverEmail(dto);
+  }
+
+  // ---------- email change (login lazmi) ----------
+
+  @ApiBearerAuth('JWT-auth')
+  @Post('change-email/request')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  requestEmailChange(
+    @CurrentUser('id') id: string,
+    @Body() dto: RequestEmailChangeDto,
+  ) {
+    return this.auth.requestEmailChange(id, dto);
+  }
+
+  @ApiBearerAuth('JWT-auth')
+  @Post('change-email/confirm')
+  @HttpCode(HttpStatus.OK)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  confirmEmailChange(
+    @CurrentUser('id') id: string,
+    @Body() dto: ConfirmEmailChangeDto,
+  ) {
+    return this.auth.confirmEmailChange(id, dto);
   }
 }

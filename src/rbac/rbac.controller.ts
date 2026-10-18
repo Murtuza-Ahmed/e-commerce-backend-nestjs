@@ -10,7 +10,8 @@ import {
   Put,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
-import { RequirePermissions } from '../common/decorators';
+import { CurrentUser, RequirePermissions } from '../common/decorators';
+import type { AuthUser } from '../common/decorators';
 import { RbacService } from './rbac.service';
 import {
   CreateRoleDto,
@@ -48,8 +49,8 @@ export class RbacController {
 
   @Post('roles')
   @RequirePermissions('roles:create')
-  createRole(@Body() dto: CreateRoleDto) {
-    return this.rbac.createRole(dto);
+  createRole(@Body() dto: CreateRoleDto, @CurrentUser() actor: AuthUser) {
+    return this.rbac.createRole(dto, actor);
   }
 
   @Patch('roles/:id')
@@ -57,8 +58,9 @@ export class RbacController {
   updateRole(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateRoleDto,
+    @CurrentUser() actor: AuthUser,
   ) {
-    return this.rbac.updateRole(id, dto);
+    return this.rbac.updateRole(id, dto, actor);
   }
 
   @Put('roles/:id/permissions')
@@ -66,13 +68,17 @@ export class RbacController {
   setPermissions(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: SetPermissionsDto,
+    @CurrentUser() actor: AuthUser,
   ) {
-    return this.rbac.setRolePermissions(id, dto.permissions);
+    return this.rbac.setRolePermissions(id, dto.permissions, actor);
   }
 
   @Delete('roles/:id')
   @RequirePermissions('roles:delete')
-  deleteRole(@Param('id', ParseUUIDPipe) id: string) {
-    return this.rbac.deleteRole(id);
+  deleteRole(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthUser,
+  ) {
+    return this.rbac.deleteRole(id, actor);
   }
 }

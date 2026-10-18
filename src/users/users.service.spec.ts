@@ -31,6 +31,10 @@ function mockCloudinary() {
   };
 }
 
+function mockAudit() {
+  return { log: jest.fn().mockResolvedValue(undefined) };
+}
+
 function baseUser() {
   return {
     id: 'user-1',
@@ -62,16 +66,23 @@ const actor = {
   permissions: [],
 };
 
+function makeService(user: any) {
+  const users = mockUserRepo(user);
+  const cloudinary = mockCloudinary();
+  const audit = mockAudit();
+  const svc = new UsersService(
+    users as never,
+    mockRolesRepo() as never,
+    cloudinary as never,
+    audit as never,
+  );
+  return { svc, users, cloudinary, audit };
+}
+
 describe('UsersService — avatar flow', () => {
   it('updateProfile: avatar file ho to upload + purani delete, data bhi update', async () => {
     const user = { ...baseUser(), avatarPublicId: 'al-ucaaz/avatars/old' };
-    const users = mockUserRepo(user);
-    const cloudinary = mockCloudinary();
-    const svc = new UsersService(
-      users as never,
-      mockRolesRepo() as never,
-      cloudinary as never,
-    );
+    const { svc, cloudinary } = makeService(user);
 
     const out = await svc.updateProfile(
       'user-1',
@@ -89,13 +100,7 @@ describe('UsersService — avatar flow', () => {
   });
 
   it('updateProfile: avatar na ho to upload nahi hota, sirf data update', async () => {
-    const users = mockUserRepo(baseUser());
-    const cloudinary = mockCloudinary();
-    const svc = new UsersService(
-      users as never,
-      mockRolesRepo() as never,
-      cloudinary as never,
-    );
+    const { svc, cloudinary } = makeService(baseUser());
 
     const out = await svc.updateProfile('user-1', { name: 'No Pic' });
 
@@ -106,13 +111,7 @@ describe('UsersService — avatar flow', () => {
   });
 
   it('createByAdmin: picture OPTIONAL — na ho to bhi user ban jata hai', async () => {
-    const users = mockUserRepo(null);
-    const cloudinary = mockCloudinary();
-    const svc = new UsersService(
-      users as never,
-      mockRolesRepo() as never,
-      cloudinary as never,
-    );
+    const { svc, cloudinary } = makeService(null);
 
     const out = await svc.createByAdmin(
       {
@@ -129,13 +128,7 @@ describe('UsersService — avatar flow', () => {
   });
 
   it('createByAdmin: picture ho to sath lag jati hai', async () => {
-    const users = mockUserRepo(null);
-    const cloudinary = mockCloudinary();
-    const svc = new UsersService(
-      users as never,
-      mockRolesRepo() as never,
-      cloudinary as never,
-    );
+    const { svc, cloudinary } = makeService(null);
 
     const out = await svc.createByAdmin(
       {
@@ -154,13 +147,7 @@ describe('UsersService — avatar flow', () => {
 
   it('deleteUser: Cloudinary avatar bhi saaf hoti hai (orphan nahi)', async () => {
     const user = { ...baseUser(), avatarPublicId: 'al-ucaaz/avatars/u' };
-    const users = mockUserRepo(user);
-    const cloudinary = mockCloudinary();
-    const svc = new UsersService(
-      users as never,
-      mockRolesRepo() as never,
-      cloudinary as never,
-    );
+    const { svc, users, cloudinary } = makeService(user);
 
     await svc.deleteUser('user-1', actor);
 
@@ -169,17 +156,52 @@ describe('UsersService — avatar flow', () => {
   });
 
   it('deleteUser: avatar na ho to deleteImage call nahi hota', async () => {
-    const users = mockUserRepo(baseUser());
-    const cloudinary = mockCloudinary();
-    const svc = new UsersService(
-      users as never,
-      mockRolesRepo() as never,
-      cloudinary as never,
-    );
+    const { svc, users, cloudinary } = makeService(baseUser());
 
     await svc.deleteUser('user-1', actor);
 
     expect(cloudinary.deleteImage).not.toHaveBeenCalled();
     expect(users.remove).toHaveBeenCalled();
+  });
+});
+
+describe('UsersService — audit trail', () => {
+  it('createByAdmin: users.create log hota hai', async () => {
+    const { svc, audit } = makeService(null);
+    await svc.createByAdmin(
+      {
+        name: 'New',
+        email: 'new@x.com',
+        password: 'StrongPass123',
+        roleId: 'role-1',
+      },
+      actor,
+    );
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: 'admin-1',
+        action: 'users.create',
+        targetType: 'user',
+      }),
+    );
+  });
+
+  it('deleteUser: users.delete log hota hai', async () => {
+    const { svc, audit } = makeService(baseUser());
+    await svc.deleteUser('user-1', actor);
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({ action: 'users.delete', targetId: 'user-1' }),
+    );
+  });
+
+  it('setActive: users.set-active log hota hai', async () => {
+    const { svc, audit } = makeService(baseUser());
+    await svc.setActive('user-1', false, actor);
+    expect(audit.log).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'users.set-active',
+        details: expect.objectContaining({ isActive: false }),
+      }),
+    );
   });
 });
