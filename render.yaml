@@ -49,6 +49,16 @@ services:
         sync: false
       - key: CORS_ORIGIN
         sync: false # frontend domain, e.g. https://al-ucaaz.com
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false # Cloudinary dashboard se (image uploads ke liye)
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: OBSERVE_APP_KEY
+        sync: false # observe.nestjs.com se (optional observability)
+      - key: OBSERVE_APP_SECRET
+        sync: false
       - key: SUPER_ADMIN_EMAIL
         sync: false
       - key: SUPER_ADMIN_PASSWORD

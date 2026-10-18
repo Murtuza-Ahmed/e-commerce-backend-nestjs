@@ -14,7 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { AuthUser } from '../common/decorators';
 import { imageUploadOptions } from '../uploads/multer.config';
@@ -46,8 +46,30 @@ export class UsersController {
   }
 
   @Patch('me')
-  updateMe(@CurrentUser('id') id: string, @Body() dto: UpdateUserDto) {
-    return this.users.updateProfile(id, dto);
+  @UseInterceptors(FileInterceptor('avatar', imageUploadOptions))
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    description:
+      'JSON bhejen (sirf data) ya form-data (data + optional avatar file). Picture OPTIONAL hai.',
+    schema: {
+      type: 'object',
+      properties: {
+        avatar: {
+          type: 'string',
+          format: 'binary',
+          description: 'Optional profile picture (sirf form-data me)',
+        },
+        name: { type: 'string', example: 'Ali Raza' },
+        phone: { type: 'string', example: '03001234567' },
+      },
+    },
+  })
+  updateMe(
+    @CurrentUser('id') id: string,
+    @Body() dto: UpdateUserDto,
+    @UploadedFile() avatar: Express.Multer.File | undefined,
+  ) {
+    return this.users.updateProfile(id, dto, avatar);
   }
 
   @Post('me/change-password')
@@ -102,18 +124,63 @@ export class UsersController {
 
   @Post()
   @RequirePermissions('users:create')
-  create(@Body() dto: CreateUserDto, @CurrentUser() actor: AuthUser) {
-    return this.users.createByAdmin(dto, actor);
+  @UseInterceptors(FileInterceptor('avatar', imageUploadOptions))
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    description:
+      'JSON bhejen ya form-data (optional avatar file ke sath). Picture OPTIONAL hai — na ho to user waise hi ban jayega.',
+    schema: {
+      type: 'object',
+      required: ['name', 'email', 'password', 'roleId'],
+      properties: {
+        avatar: {
+          type: 'string',
+          format: 'binary',
+          description: 'Optional profile picture (sirf form-data me)',
+        },
+        name: { type: 'string', example: 'Ali Raza' },
+        email: { type: 'string', example: 'ali@example.com' },
+        phone: { type: 'string', example: '03001234567' },
+        password: { type: 'string', example: 'StrongPass123' },
+        roleId: { type: 'string', format: 'uuid' },
+      },
+    },
+  })
+  create(
+    @Body() dto: CreateUserDto,
+    @UploadedFile() avatar: Express.Multer.File | undefined,
+    @CurrentUser() actor: AuthUser,
+  ) {
+    return this.users.createByAdmin(dto, actor, avatar);
   }
 
   @Patch(':id')
   @RequirePermissions('users:update')
+  @UseInterceptors(FileInterceptor('avatar', imageUploadOptions))
+  @ApiConsumes('multipart/form-data', 'application/json')
+  @ApiBody({
+    description:
+      'JSON bhejen (sirf data) ya form-data (data + optional avatar file). Picture OPTIONAL hai.',
+    schema: {
+      type: 'object',
+      properties: {
+        avatar: {
+          type: 'string',
+          format: 'binary',
+          description: 'Optional profile picture (sirf form-data me)',
+        },
+        name: { type: 'string', example: 'Ali Raza' },
+        phone: { type: 'string', example: '03001234567' },
+      },
+    },
+  })
   update(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: UpdateUserDto,
+    @UploadedFile() avatar: Express.Multer.File | undefined,
     @CurrentUser() actor: AuthUser,
   ) {
-    return this.users.updateByAdmin(id, dto, actor);
+    return this.users.updateByAdmin(id, dto, actor, avatar);
   }
 
   @Patch(':id/role')

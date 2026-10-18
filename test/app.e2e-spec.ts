@@ -347,4 +347,24 @@ describeIfDb('Phase 1 — Users/Auth/OTP/RBAC (e2e)', () => {
       .attach('file', Buffer.from('fake-image'), 'test.png')
       .expect(403);
   });
+
+  it('PATCH /me: JSON se sirf data update (purana behavior barkarar)', async () => {
+    const res = await api()
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${customerAccess}`)
+      .send({ name: 'E2E Customer' })
+      .expect(200);
+    expect(res.body.name).toBe('E2E Customer');
+    expect(res.body.avatarUrl).toBeNull();
+  });
+
+  it('PATCH /me: form-data me avatar file bhi chalti hai (dual-mode)', async () => {
+    // Cloudinary creds nahi — saaf 400 aana chahiye (file path wired hai).
+    await api()
+      .patch('/api/users/me')
+      .set('Authorization', `Bearer ${customerAccess}`)
+      .field('name', 'E2E With Pic')
+      .attach('avatar', Buffer.from('fake-image'), 'avatar.png')
+      .expect(400);
+  });
 });

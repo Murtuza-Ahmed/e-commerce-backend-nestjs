@@ -126,17 +126,17 @@ Every route lives under `/api`. Routes marked 🔒 require `Authorization: Beare
 | Method | Route | Permission | Notes |
 |---|---|---|---|
 | GET | `/me` | — | Any logged-in user |
-| PATCH | `/me` | — | Name / phone |
+| PATCH | `/me` | — | Name / phone — JSON, or form-data with an optional `avatar` file (one request does both) |
 | POST | `/me/change-password` | — | Revokes other sessions |
 | PATCH | `/me/avatar` | — | Multipart image → Cloudinary; old avatar auto-deleted |
 | DELETE | `/me/avatar` | — | Removes the avatar |
 | GET | `/` | `users:read` | Paginated, searchable |
 | GET | `/:id` | `users:read` | |
-| POST | `/` | `users:create` | Staff-created accounts are pre-verified |
-| PATCH | `/:id` | `users:update` | |
+| POST | `/` | `users:create` | Staff-created accounts are pre-verified; optional `avatar` file via form-data |
+| PATCH | `/:id` | `users:update` | JSON, or form-data with an optional `avatar` file |
 | PATCH | `/:id/role` | `users:manage-roles` | Super admin only |
 | PATCH | `/:id/active` | `users:activate` | Deactivation logs the user out instantly |
-| DELETE | `/:id` | `users:delete` | |
+| DELETE | `/:id` | `users:delete` | Also deletes the user's Cloudinary avatar — no orphans |
 
 ### Uploads — `/api/uploads` 🔒
 
@@ -184,6 +184,12 @@ breaking.
   you need it (product images in a later phase, for example).
 - Avatars: `PATCH /api/users/me/avatar` handles upload **and** cleanup — replacing an
   avatar deletes the previous file from Cloudinary, so no orphans accumulate.
+  Deleting a user (`DELETE /api/users/:id`) also removes their Cloudinary avatar.
+- One-shot profile updates: `PATCH /api/users/me`, `POST /api/users` and
+  `PATCH /api/users/:id` accept **either** JSON **or** `multipart/form-data`.
+  Send form-data with an `avatar` file field plus the regular fields to update
+  data and picture in a single request. The picture is always optional — without
+  it, the account is created/updated exactly as before.
 
 ---
 
