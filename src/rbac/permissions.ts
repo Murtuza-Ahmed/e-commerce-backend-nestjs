@@ -117,6 +117,19 @@ export const PERMISSIONS: PermissionDef[] = [
     action: 'refund',
     description: 'Refund process karna',
   },
+  // ---- uploads (Cloudinary) ----
+  {
+    name: 'uploads:create',
+    resource: 'uploads',
+    action: 'create',
+    description: 'Image upload karna (products, categories)',
+  },
+  {
+    name: 'uploads:delete',
+    resource: 'uploads',
+    action: 'delete',
+    description: 'Uploaded image delete karna',
+  },
 ];
 
 /** Admin role ko ye permissions kabhi nahi milengi. */

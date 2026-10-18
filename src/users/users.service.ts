@@ -10,6 +10,7 @@ import { Repository } from 'typeorm';
 import { User } from './entities/user.entity';
 import { Role } from '../rbac/entities/role.entity';
 import { AuthUser } from '../common/decorators';
+import { CloudinaryService } from '../uploads/cloudinary.service';
 import {
   comparePassword,
   hashPassword,
@@ -22,6 +23,7 @@ export interface SafeUser {
   name: string;
   email: string;
   phone: string | null;
+  avatarUrl: string | null;
   emailVerified: boolean;
   isActive: boolean;
   role: { id: string; name: string; level: number };
@@ -45,6 +47,7 @@ export class UsersService {
     private readonly users: Repository<User>,
     @InjectRepository(Role)
     private readonly roles: Repository<Role>,
+    private readonly cloudinary: CloudinaryService,
   ) {}
 
   // ---------- internal helpers ----------
@@ -55,6 +58,7 @@ export class UsersService {
       name: user.name,
       email: user.email,
       phone: user.phone,
+      avatarUrl: user.avatarUrl,
       emailVerified: user.emailVerified,
       isActive: user.isActive,
       role: {
@@ -236,6 +240,36 @@ export class UsersService {
     user.refreshTokenHash = null; // baqi sessions logout
     await this.users.save(user);
     return { message: 'Password change ho gaya. Dobara login karen.' };
+  }
+
+  // ---------- avatar (self-service) ----------
+
+  async setAvatar(id: string, file: Express.Multer.File): Promise<SafeUser> {
+    const user = await this.getUserOrFail(id);
+    const { url, publicId } = await this.cloudinary.uploadImage(file.buffer, {
+      folder: 'al-ucaaz/avatars',
+    });
+    // Purani avatar Cloudinary se saaf — orphan files nahi chhorni.
+    if (user.avatarPublicId) {
+      await this.cloudinary
+        .deleteImage(user.avatarPublicId)
+        .catch(() => undefined);
+    }
+    user.avatarUrl = url;
+    user.avatarPublicId = publicId;
+    return this.toSafeUser(await this.users.save(user));
+  }
+
+  async clearAvatar(id: string): Promise<SafeUser> {
+    const user = await this.getUserOrFail(id);
+    if (user.avatarPublicId) {
+      await this.cloudinary
+        .deleteImage(user.avatarPublicId)
+        .catch(() => undefined);
+    }
+    user.avatarUrl = null;
+    user.avatarPublicId = null;
+    return this.toSafeUser(await this.users.save(user));
   }
 
   // ---------- staff management ----------

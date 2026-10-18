@@ -16,30 +16,27 @@ import { OtpModule } from './otp/otp.module';
 import { RbacModule } from './rbac/rbac.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
+import { UploadsModule } from './uploads/uploads.module';
 
+/** NestJS Observe — official observability SDK (tracing, metrics, errors). */
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 /**
  * Phase 1 — Users, Auth, OTP, dynamic RBAC.
+ * Phase 2 — Image uploads (Cloudinary) + user avatars.
  *
  * Global guards ki tartib:
  *  1. ThrottlerGuard  — rate limiting (pehle darwaze par hi roko)
  *  2. JwtAuthGuard    — @Public ke siwa har route par login lazmi
  *  3. PermissionsGuard— @RequirePermissions wali routes par DB permissions
  */
-
-const observeAppKey = process.env.OBSERVE_APP_KEY;
-const observeAppSecret = process.env.OBSERVE_APP_SECRET;
-const observeEnabled = !!observeAppKey && !!observeAppSecret;
-
-if (!observeEnabled) {
-  console.warn(
-    'OBSERVE_APP_KEY / OBSERVE_APP_SECRET not set — running without observability.',
-  );
-}
-
 @Module({
   imports: [
+    ObserveModule.forRoot({
+      appKey: process.env.OBSERVE_APP_KEY ?? '',
+      appSecret: process.env.OBSERVE_APP_SECRET ?? '',
+      serviceId: 'al-ucaaz-api',
+    }),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -67,15 +64,7 @@ if (!observeEnabled) {
     RbacModule,
     UsersModule,
     AuthModule,
-    ...(observeEnabled
-      ? [
-          ObserveModule.forRoot({
-            appKey: observeAppKey,
-            appSecret: observeAppSecret,
-            serviceId: 'al-ucaaz-api',
-          }),
-        ]
-      : []),
+    UploadsModule,
   ],
   controllers: [HealthController],
   providers: [

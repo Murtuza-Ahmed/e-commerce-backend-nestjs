@@ -48,6 +48,13 @@ export class User {
   @Column({ type: 'varchar', select: false, nullable: true })
   refreshTokenHash!: string | null;
 
+  /** Profile picture — Cloudinary URL + publicId (purani delete karne ke liye). */
+  @Column({ type: 'text', nullable: true })
+  avatarUrl!: string | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  avatarPublicId!: string | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

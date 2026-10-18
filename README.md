@@ -1,227 +1,272 @@
-# Al-ucaaz API — Phase 1: Users
+# Al-ucaaz API
 
-E-commerce backend, **phase-wise** ban raha hai — jaise asal professional projects bante hain:
-**idea → programming → testing → dev → production**, har phase mukammal verify karke agla phase.
+A phase-built e-commerce backend — engineered the way real production systems are built:
+**plan → implement → test → verify**, one phase at a time. No shortcuts, no dead code.
 
-**Phase 1 = Users module (mukammal):** signup/signin, email OTP verification (bina OTP login nahi),
-JWT access + refresh tokens (rotation), forgot/reset password, forgot email (phone SMS OTP),
-authentication, authorization, **dynamic RBAC**, user management (super_admin / admin / customer),
-tamam credentials env me, tests asli PostgreSQL par pass.
-
-> Agle phases (catalog, orders, payments...) isi bunyad par ayenge. Payments ki
-> permissions (`payments:*`) abhi se reserve hain taake RBAC pehle se tayyar ho.
+**Stack:** NestJS 11 · TypeORM · PostgreSQL (Neon) · JWT · Cloudinary · Swagger
 
 ---
 
-## 1. Install (pehli dafa) — IMPORTANT
+## What lives here
 
-**Naya fresh clone lo.** Ye ZIP purani files delete nahi karta (ZIP sirf overwrite
-karta hai) — purane template par extract karoge to purani todo files reh jayengi
-aur build tootega. Is liye:
+### Phase 1 — Users, Auth & Access Control ✅
+
+| Area | Details |
+|---|---|
+| Signup / Signin | Email + password, bcrypt (12 rounds) |
+| Email OTP | 6-digit, HMAC-hashed, 10-min expiry, attempt limits — **login is impossible without verification** |
+| Tokens | JWT access (15m) + refresh (7d) with **rotation** — every refresh invalidates the previous pair |
+| Recovery | Forgot/reset password via email OTP (all sessions revoked) · Forgot email via phone SMS OTP → masked email |
+| Dynamic RBAC | Roles & permissions stored in the database — no hardcoded roles. Fresh permissions load on every request |
+| User management | Self-service profile · staff CRUD with role-hierarchy protection (you can't manage your own level or above) |
+
+### Phase 2 — Image Uploads ✅ (current)
+
+| Area | Details |
+|---|---|
+| Cloudinary uploads | `POST /api/uploads` — images only, 5 MB max, returns `{url, publicId}` |
+| User avatars | `PATCH /api/users/me/avatar` — any user can set their profile picture; the old image is auto-deleted from Cloudinary |
+| New permissions | `uploads:create`, `uploads:delete` — staff only for the upload endpoints; avatars are self-service |
+
+---
+
+## Quick start
+
+> **Start from a fresh clone.** This project is delivered as a flat archive — extracting
+> over an old folder does **not** delete stale files and will break the build.
+> ```bash
+> git clone https://github.com/Murtuza-Ahmed/todo-app-nestjs al-ucaaz-backend
+> cd al-ucaaz-backend
+> # extract the archive here → "Yes to All"
+> ```
 
 ```bash
-# 1. GitHub se NAYA fresh clone (purane folder me extract MAT karo)
-git clone https://github.com/Murtuza-Ahmed/todo-app-nestjs al-ucaaz-backend
-cd al-ucaaz-backend
-
-# 2. Is ZIP ko us folder ke ANDAR "Extract Here" -> "Yes to All"
-# 3. Dependencies
 npm install
 
-# 4. .env banao aur Neon + secrets bharo
-cp .env.example .env
-# .env kholo: DATABASE_URL (Neon, aakhir me ?sslmode=require),
-# JWT_ACCESS_SECRET / JWT_REFRESH_SECRET (16+ random characters),
-# SUPER_ADMIN_EMAIL / SUPER_ADMIN_PASSWORD, SMTP_*, TWILIO_* (neeche dekho)
-```
+# 1. Configure — copy and fill in every value (see Configuration below)
+cp .env.example .env        # Windows: copy .env.example .env
 
-### 5. Tables banao (sirf ek dafa)
-
-`.env` me `DATABASE_SYNC=true` karo, phir:
-
-```bash
+# 2. Create tables — exactly once
+#    Set DATABASE_SYNC=true in .env, then:
 npm run start:dev
-```
+#    When "Nest application successfully started" appears, press Ctrl+C,
+#    then set DATABASE_SYNC=false again.
 
-Jab `Nest application successfully started` aa jaye to tables ban gayi — `Ctrl+C`
-se band karo aur `.env` me wapas `DATABASE_SYNC=false` kar do.
-
-> `DATABASE_SYNC=true` kabhi permanent mat rakho — schema change par data drop ho
-> sakta hai. Production me hamesha `false`.
-
-### 6. Seed (roles, permissions, super admin)
-
-```bash
+# 3. Seed — roles, permissions, super admin
 npm run seed
-```
 
-Ye banata hai: 16 permissions, 3 roles (`super_admin`, `admin`, `customer`),
-aur `.env` wale email/password par super admin (verified, active).
-
-### 7. Chalao
-
-```bash
+# 4. Run
 npm run start:dev
-# API: http://localhost:3000/api
-# Swagger: http://localhost:3000/api/api-docs
-# Health: http://localhost:3000/api/
+```
+
+| Endpoint | URL |
+|---|---|
+| API | `http://localhost:3000/api` |
+| Swagger docs | `http://localhost:3000/api/api-docs` |
+| Health | `http://localhost:3000/api/` |
+
+Log in with your `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` to begin.
+
+> Never leave `DATABASE_SYNC=true` permanently — a schema change can drop data.
+> In production it must always be `false`.
+
+---
+
+## Configuration
+
+All settings are validated at startup — the app refuses to boot with a clear error
+instead of running half-configured.
+
+| Variable | Required | Purpose |
+|---|---|---|
+| `DATABASE_URL` | Yes | Neon PostgreSQL connection string, ending with `?sslmode=require` |
+| `DATABASE_SYNC` | Yes | `true` only for the one-time table creation, then `false` |
+| `JWT_ACCESS_SECRET` | Yes | 16+ random characters |
+| `JWT_REFRESH_SECRET` | Yes | 16+ random characters, different from the access secret |
+| `JWT_ACCESS_EXPIRES_IN` | No | Default `15m` (`15m`, `1h`, `3600` all accepted) |
+| `JWT_REFRESH_EXPIRES_IN` | No | Default `7d` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM` | Prod: yes | Any SMTP provider (Gmail App Password, Resend, SES…). Without it, **dev mode**: OTPs are printed to the terminal |
+| `OTP_TTL_MINUTES` / `OTP_MAX_ATTEMPTS` | No | Defaults `10` / `5` |
+| `OTP_SECRET` | Prod: yes | Secret used to hash OTPs |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM` | No | SMS OTP for the forgot-email flow; dev mode prints to terminal |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | Prod: yes | Image uploads; without them upload endpoints return a clear `400` |
+| `OBSERVE_APP_KEY` / `OBSERVE_APP_SECRET` | No | [NestJS Observe](https://observe.nestjs.com) — official observability (traces, metrics, errors). Without them the SDK logs one warning and sends nothing |
+| `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` | Yes | First super admin, created by `npm run seed` |
+| `CORS_ORIGIN` | No | Default `*`; set your frontend domain in production |
+
+Generate secrets with:
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 ---
 
-## 2. Credentials (.env) — kya kya lagta hai
+## API reference
 
-| Variable | Lazmi? | Kaam |
+Every route lives under `/api`. Routes marked 🔒 require `Authorization: Bearer <accessToken>`.
+`@Public` routes are open. Full interactive docs at `/api/api-docs`.
+
+### Auth — `/api/auth` (public, except logout)
+
+| Method | Route | Notes |
 |---|---|---|
-| `DATABASE_URL` | Haan | Neon PostgreSQL string (`?sslmode=require` ke sath) |
-| `DATABASE_SYNC` | Haan | Sirf pehli dafa `true`, phir `false` |
-| `JWT_ACCESS_SECRET` | Haan | 16+ random characters (Render generate kar deta hai) |
-| `JWT_REFRESH_SECRET` | Haan | 16+ random characters, access se mukhtalif |
-| `JWT_ACCESS_EXPIRES_IN` | Nahi | Default `15m` (`15m`/`1h`/`3600` sab chalte hain) |
-| `JWT_REFRESH_EXPIRES_IN` | Nahi | Default `7d` |
-| `SMTP_HOST/PORT/USER/PASS/FROM` | Prod me haan | Koi bhi SMTP (Gmail App Password, Resend, SES). Na ho to **dev mode**: OTP terminal par print hota hai |
-| `OTP_TTL_MINUTES` / `OTP_MAX_ATTEMPTS` | Nahi | Default `10` min / `5` attempts |
-| `OTP_SECRET` | Prod me haan | OTP hash ka secret |
-| `TWILIO_ACCOUNT_SID/AUTH_TOKEN/FROM` | Nahi | Forgot-email SMS ke liye. Na ho to dev mode (terminal) |
-| `SUPER_ADMIN_EMAIL/PASSWORD` | Haan | Seed ke liye pehla super admin |
-| `CORS_ORIGIN` | Nahi | Default `*`; prod me frontend domain |
-| `FRONTEND_URL` | Nahi | Frontend ka URL (mustaqbil ke emails ke liye) |
+| POST | `/signup` | Creates the account, sends a 6-digit OTP |
+| POST | `/verify-email` | `{email, otp}` → verifies and returns tokens immediately |
+| POST | `/resend-otp` | `{email, purpose}` — always the same response (no account enumeration) |
+| POST | `/login` | Unverified accounts get `403 EMAIL_NOT_VERIFIED` |
+| POST | `/refresh` | `{refreshToken}` → new pair, old pair instantly invalid |
+| POST | `/logout` 🔒 | Revokes the session |
+| POST | `/forgot-password` | Sends a reset OTP |
+| POST | `/reset-password` | `{email, otp, newPassword}` — revokes all sessions |
+| POST | `/forgot-email` | `{phone}` → SMS OTP |
+| POST | `/recover-email` | `{phone, otp}` → returns a masked email (`j***@example.com`) |
 
-App start par env validate hota hai — koi lazmi cheez missing hui to app seedha
-error dekar ruk jayegi (aadhi chalti app se behtar).
+### Users — `/api/users` 🔒
 
----
+| Method | Route | Permission | Notes |
+|---|---|---|---|
+| GET | `/me` | — | Any logged-in user |
+| PATCH | `/me` | — | Name / phone |
+| POST | `/me/change-password` | — | Revokes other sessions |
+| PATCH | `/me/avatar` | — | Multipart image → Cloudinary; old avatar auto-deleted |
+| DELETE | `/me/avatar` | — | Removes the avatar |
+| GET | `/` | `users:read` | Paginated, searchable |
+| GET | `/:id` | `users:read` | |
+| POST | `/` | `users:create` | Staff-created accounts are pre-verified |
+| PATCH | `/:id` | `users:update` | |
+| PATCH | `/:id/role` | `users:manage-roles` | Super admin only |
+| PATCH | `/:id/active` | `users:activate` | Deactivation logs the user out instantly |
+| DELETE | `/:id` | `users:delete` | |
 
-## 3. Flows
+### Uploads — `/api/uploads` 🔒
 
-### A) User perspective (koi bhi customer)
+| Method | Route | Permission | Notes |
+|---|---|---|---|
+| POST | `/` | `uploads:create` | `multipart/form-data` with `file` (+ optional `folder`) → `{url, publicId}`. Images only, 5 MB max |
+| DELETE | `/?publicId=` | `uploads:delete` | Removes from Cloudinary |
 
-1. `POST /api/auth/signup` `{name, email, phone?, password}` → account banta hai,
-   email par 6-digit OTP jata hai. **Verify kiye baghair login nahi hoga.**
-2. `POST /api/auth/verify-email` `{email, otp}` → verified + foran login tokens.
-3. `POST /api/auth/login` `{email, password}` → `{accessToken, refreshToken, user}`.
-4. Access token har request me: `Authorization: Bearer <token>`.
-5. `POST /api/auth/refresh` `{refreshToken}` → naya pair (purana foran invalid — rotation).
-6. `POST /api/auth/logout` → session khatam.
-7. Password bhool gaye → `POST /api/auth/forgot-password` `{email}` → email par OTP →
-   `POST /api/auth/reset-password` `{email, otp, newPassword}` (saari sessions logout).
-8. Email bhool gaye → `POST /api/auth/forgot-email` `{phone}` → phone par SMS OTP →
-   `POST /api/auth/recover-email` `{phone, otp}` → masked email (`m***@gmail.com`).
-9. `GET /api/users/me`, `PATCH /api/users/me`, `POST /api/users/me/change-password`.
+### RBAC — `/api/rbac` 🔒 (super admin)
 
-OTP ke rules: 6-digit, 10 min expiry, ghalat attempts par block, ek waqt me ek hi
-valid code, DB me sirf hash (plain code kabhi store nahi hota).
+`GET /permissions` · `GET /roles` · `GET /roles/:id` · `POST /roles` ·
+`PATCH /roles/:id` · `PUT /roles/:id/permissions` · `DELETE /roles/:id`
 
-### B) Super-admin perspective
+### Health
 
-Seed wala super admin login kare (`SUPER_ADMIN_EMAIL/PASSWORD`), phir:
+`GET /api/` — public, for uptime checks.
 
-- `POST /api/users` `{name, email, password, roleId}` → **admin ya customer banata hai**
-  (staff-created accounts trusted → verified).
-- `DELETE /api/users/:id` → **admin ko delete kar sakta hai.**
-- `PATCH /api/users/:id/role` → kisi ka role change.
-- `PATCH /api/users/:id/active` → activate/deactivate (deactivate = foran logout).
-- `GET /api/rbac/permissions` → tamam permissions ki list.
-- `POST /api/rbac/roles` `{name, level, permissionNames[]}` → **naya role.**
-- `PUT /api/rbac/roles/:id/permissions` → role ki permissions badlo (dynamic RBAC).
-- `DELETE /api/rbac/roles/:id` → role delete (system roles nahi, aur jis par users hon wo nahi).
-
-### C) Admin perspective
-
-Admin ke paas **sab kuch** hai siwaye:
-- Role management (`roles:*`) — sirf super_admin.
-- Kisi ka role change (`users:manage-roles`) — sirf super_admin.
-- **Payment side update/delete** (`payments:update`, `payments:delete`) — requirement ke mutabiq admin ko nahi milte. Payments module agle phase me aayega; permissions abhi se tayyar hain.
-
-**Level rule (dynamic):** har role ka `level` hota hai (super_admin 100 > admin 50 >
-customer 10). Apne level ya upar wale user ko manage nahi kar sakte — admin
-customer ko handle kar sakta hai, doosre admin ko nahi; super_admin sab ko.
+**Rate limiting:** 120 req/min globally; 10–20 req/min on signup/login/OTP endpoints.
 
 ---
 
-## 4. API reference (mukhtasar)
+## Access control model
 
-Saari routes `/api` prefix ke neeche. `@Public` wali khuli, baqi par Bearer token lazmi.
+Permissions live in the database (`resource:action`, e.g. `users:create`) — nothing is
+hardcoded. Every request reloads the user's role and permissions fresh, so a permission
+change takes effect immediately without re-login.
 
-**Auth** (`/api/auth`) — sab public siwaye logout:
-`POST signup`, `POST verify-email`, `POST resend-otp`, `POST login`,
-`POST refresh`, `POST logout` 🔒, `POST forgot-password`, `POST reset-password`,
-`POST forgot-email`, `POST recover-email`
-
-**Users** (`/api/users`) — 🔒 sab par login lazmi:
-`GET me`, `PATCH me`, `POST me/change-password` (koi bhi user apne liye),
-`GET /` (users:read), `GET /:id` (users:read), `POST /` (users:create),
-`PATCH /:id` (users:update), `PATCH /:id/role` (users:manage-roles),
-`PATCH /:id/active` (users:activate), `DELETE /:id` (users:delete)
-
-**RBAC** (`/api/rbac`) — 🔒 sirf super_admin:
-`GET permissions`, `GET roles`, `GET roles/:id`, `POST roles`,
-`PATCH roles/:id`, `PUT roles/:id/permissions`, `DELETE roles/:id`
-
-**Health:** `GET /api/` (public)
-
-Rate limiting: global 120/min; signup/login/OTP endpoints par 10–20/min (brute-force protection).
-Mukammal docs: `http://localhost:3000/api/api-docs`.
+- **Roles** carry a `level` (super_admin 100 › admin 50 › customer 10). You can only
+  manage users **below** your level — an admin handles customers, never another admin.
+- **`grantsAll`** (super_admin) bypasses every permission check.
+- **Admin** has everything **except**: role management (`roles:*`), assigning user roles
+  (`users:manage-roles`), and payment updates/deletes (`payments:update`, `payments:delete`)
+  — the payment surface is reserved for a later phase and stays locked down by design.
+- New roles and permissions can be created at runtime via `/api/rbac` — no deploy needed.
 
 ---
 
-## 5. Dynamic RBAC — ye kaam kaise karta hai
+## Image uploads
 
-- Permissions DB table me hain (`resource:action`, masalan `users:create`) — code me hardcode nahi.
-- Har request par `JwtStrategy` user ka role + permissions **DB se fresh** load karta hai — token me permissions cache nahi, is liye permission badalte hi foran lagoo.
-- Route par `@RequirePermissions('users:create')` → `PermissionsGuard` check karta hai.
-- `grantsAll` wala role (super_admin) bypass karta hai.
-- Nayi permission ya naya role super_admin `/api/rbac` se bana sakta hai — deploy ki zaroorat nahi.
+Powered by Cloudinary. Configure the three `CLOUDINARY_*` variables and uploads go
+live; without them the endpoints fail fast with a clear `400` instead of silently
+breaking.
+
+- General uploads: `POST /api/uploads` → take the returned `url` → store it wherever
+  you need it (product images in a later phase, for example).
+- Avatars: `PATCH /api/users/me/avatar` handles upload **and** cleanup — replacing an
+  avatar deletes the previous file from Cloudinary, so no orphans accumulate.
 
 ---
 
-## 6. Security notes (real-world)
+## Observability
 
-- Passwords: bcrypt (12 rounds). Refresh tokens: DB me hash (SHA-256 pre-hash + bcrypt — bcrypt ke 72-byte truncation bug ka fix).
-- Refresh rotation: har refresh par naya pair; purana foran invalid; reuse/shak par session kill.
-- Login errors generic (email vs password ka farq nahi batate); forgot flows me account enumeration nahi.
-- OTP: HMAC-SHA256 hash, expiry, attempt limit, ek waqt me ek valid.
-- Helmet headers, CORS configurable, global validation pipe, env validation fail-fast.
-- Deactivate ya password reset par saari sessions foran logout.
+The app ships with the official [`@nestjs/observe`](https://observe.nestjs.com) SDK
+wired in (`ObserveModule` + the `instrument` bootstrap option). Every request becomes
+a trace of your own controllers, providers, guards and database queries — no manual
+spans, no collector to run.
 
-## 7. Tests
+1. Create a free project at [observe.nestjs.com](https://observe.nestjs.com) and copy
+   the app key + secret.
+2. Set `OBSERVE_APP_KEY` / `OBSERVE_APP_SECRET` in `.env` (and in Render for production).
+3. Restart — traces, errors and runtime metrics start flowing.
+
+Without the keys the app runs exactly as before; the SDK logs a single warning and
+sends nothing.
+
+## Security notes
+
+- Passwords: bcrypt, 12 rounds. Refresh tokens: SHA-256 pre-hash + bcrypt
+  (bcrypt silently truncates past 72 bytes — two JWTs issued in the same second share
+  a prefix, so the pre-hash is a real fix, not paranoia).
+- Refresh **rotation**: each refresh mints a new pair and kills the old one; reuse or
+  tampering kills the whole session.
+- OTPs: 6-digit, HMAC-SHA256 hashed at rest, expiring, attempt-limited, single-active.
+- Login and recovery responses are enumeration-safe (no "email not found" leaks).
+- Helmet headers, configurable CORS, global validation pipe, fail-fast env validation,
+  per-endpoint rate limits.
+- Deactivation or password reset revokes every session immediately.
+
+---
+
+## Tests
 
 ```bash
-npx jest                        # unit (13 tests)
-E2E_DATABASE_URL=postgresql://user:pass@host:5432/db npx jest --config ./test/jest-e2e.json
+npx jest                         # unit — 14 tests
+E2E_DATABASE_URL=postgresql://user:pass@host:5432/db \
+  npx jest --config ./test/jest-e2e.json   # e2e — 17 tests on real PostgreSQL
 ```
 
-E2E asli PostgreSQL par chalta hai (bina `E2E_DATABASE_URL` ke skip): 15 tests —
-signup→OTP→verify→login→refresh rotation→logout, RBAC allow/deny, super_admin ka
-admin create/delete, forgot/reset password, forgot/recover email.
+The e2e suite runs against a real database (skipped without `E2E_DATABASE_URL`) and
+covers: signup → OTP → verify → login → refresh rotation → logout, RBAC allow/deny,
+super-admin creates/deletes admins, forgot/reset password, forgot/recover email,
+avatar upload endpoints, and upload behavior without credentials.
 
-## 8. Production (Render + Neon)
+---
 
-1. Render Dashboard → New → Blueprint → ye repo (`render.yaml` mojood hai).
-2. Dashboard me set karo: `DATABASE_URL` (Neon, `?sslmode=require`), `SMTP_*`,
-   `TWILIO_*`, `CORS_ORIGIN` (frontend domain), `SUPER_ADMIN_EMAIL/PASSWORD`.
-   JWT secrets aur `OTP_SECRET` Render khud generate kar dega.
-3. Pehle deploy ke baad **ek dafa** `DATABASE_SYNC=true` karke deploy karo (tables),
-   phir `false` karke dobara deploy karo. Phir Render shell me `npm run seed`.
+## Deployment (Render + Neon)
 
-## 9. Project structure
+1. Render Dashboard → **New → Blueprint** → this repo (a `render.yaml` is included).
+2. Set in the dashboard: `DATABASE_URL` (Neon, with `?sslmode=require`), `SMTP_*`,
+   `TWILIO_*`, `CLOUDINARY_*`, `CORS_ORIGIN` (your frontend domain),
+   `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD`. JWT secrets and `OTP_SECRET` can be
+   Render-generated.
+3. After the first deploy, run **one** deploy with `DATABASE_SYNC=true` (creates tables),
+   then set it back to `false` and redeploy. Then, in the Render shell: `npm run seed`.
+
+---
+
+## Project structure
 
 ```
 src/
-├── main.ts                 # prefix /api, helmet, validation, CORS, Swagger
-├── app.module.ts           # config validation, DB, global guards (throttle→JWT→permissions)
-├── config/                 # env.validation.ts, db-ssl.ts, data-source.ts
-├── common/                 # decorators (@Public/@RequirePermissions/@CurrentUser), crypto
-├── rbac/                   # Role/Permission entities, guard, service, controller
-├── users/                  # User entity, service, controller (me + staff management)
-├── auth/                   # signup/login/OTP/refresh/forgot flows, JWT strategy
-├── otp/                    # OTP engine (issue/verify, expiry, attempts)
-├── mail/                   # SMTP email (dev fallback: terminal)
-├── sms/                    # Twilio SMS (dev fallback: terminal)
-└── health/                 # GET /api/
-seed.ts                     # npm run seed — pehle RBAC, phir super admin
-src/database/seeds/        # rbac.seed.ts, super-admin.seed.ts
+├── main.ts                  # /api prefix, helmet, validation, CORS, Swagger
+├── app.module.ts            # env validation, DB, global guards (throttle → JWT → permissions)
+├── config/                  # env validation, Neon-aware SSL, standalone data source
+├── common/                  # decorators, crypto helpers, slugify
+├── rbac/                    # Role/Permission entities, guard, management API
+├── users/                   # User entity, auth-adjacent profile & staff management
+├── auth/                    # signup/login/OTP/refresh/recovery, JWT strategy
+├── otp/                     # OTP engine — issue/verify, expiry, attempt limits
+├── mail/ / sms/             # SMTP email / Twilio SMS (terminal fallback in dev)
+├── uploads/                 # Cloudinary service + upload endpoints
+└── health/                  # GET /api/
+seed.ts                      # npm run seed → RBAC → super admin
+src/database/seeds/          # rbac.seed.ts, super-admin.seed.ts
+test/                        # app.e2e-spec.ts (DB-gated), e2e-setup.ts
 ```
 
-Phase 2 jab shuru hoga to isi structure me naya module (masalan `catalog/`) aayega —
-users/auth/RBAC ko chhede baghair.
+## Roadmap
+
+- **Phase 3** — Catalog, one API group at a time (categories → products → variants)
+- **Phase 4** — Orders & checkout (cart → order, stock decrement, coupons)
+- **Phase 5** — Payments (the reserved `payments:*` permissions activate here)
+- **Later** — Frontend wiring (`VITE_USE_API=true`), reviews, notifications

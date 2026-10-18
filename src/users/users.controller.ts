@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -9,10 +10,14 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiTags } from '@nestjs/swagger';
 import { CurrentUser, RequirePermissions } from '../common/decorators';
 import type { AuthUser } from '../common/decorators';
+import { imageUploadOptions } from '../uploads/multer.config';
 import { UsersService } from './users.service';
 import {
   ChangePasswordDto,
@@ -51,6 +56,26 @@ export class UsersController {
     @Body() dto: ChangePasswordDto,
   ) {
     return this.users.changePassword(id, dto.currentPassword, dto.newPassword);
+  }
+
+  @Patch('me/avatar')
+  @UseInterceptors(FileInterceptor('file', imageUploadOptions))
+  @ApiConsumes('multipart/form-data')
+  setMyAvatar(
+    @CurrentUser('id') id: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException(
+        "'file' field me image bhejen (multipart/form-data).",
+      );
+    }
+    return this.users.setAvatar(id, file);
+  }
+
+  @Delete('me/avatar')
+  clearMyAvatar(@CurrentUser('id') id: string) {
+    return this.users.clearAvatar(id);
   }
 
   // ---------- staff management ----------
