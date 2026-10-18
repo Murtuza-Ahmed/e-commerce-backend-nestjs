@@ -21,7 +21,7 @@ async function run(): Promise<void> {
   try {
     await seedRbac(AppDataSource);
     await seedSuperAdmin(AppDataSource, { email, password });
-    console.info('Seed completed.');
+    console.info('Seed mukammal.');
   } finally {
     await AppDataSource.destroy();
   }

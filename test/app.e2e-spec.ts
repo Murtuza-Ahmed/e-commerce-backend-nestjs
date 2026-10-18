@@ -1,4 +1,19 @@
 import './e2e-setup';
+
+/**
+ * @nestjs/observe pure ESM hai (import.meta use karta hai) — Jest ke CJS
+ * runtime me load nahi hota. Vendor SDK ko test nahi karte, is liye mock:
+ * ObserveModule.forRoot() ek khaali dynamic module ban jata hai.
+ */
+jest.mock('@nestjs/observe', () => ({
+  createObserveModule: () => ({
+    ObserveModule: {
+      forRoot: () => ({ module: class MockObserveModule {} }),
+    },
+    ObserveInstrument: { __mock: true },
+  }),
+}));
+
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
@@ -307,5 +322,29 @@ describeIfDb('Phase 1 — Users/Auth/OTP/RBAC (e2e)', () => {
 
   it('bina token ke protected route 401', async () => {
     await api().get('/api/users/me').expect(401);
+  });
+
+  // ---------------- Phase 2: Uploads ----------------
+
+  it('uploads: bina Cloudinary creds ke saaf 400', async () => {
+    await api()
+      .post('/api/uploads')
+      .set('Authorization', `Bearer ${superAccess}`)
+      .attach('file', Buffer.from('fake-image'), 'test.png')
+      .expect(400);
+
+    await api()
+      .patch('/api/users/me/avatar')
+      .set('Authorization', `Bearer ${customerAccess}`)
+      .attach('file', Buffer.from('fake-image'), 'avatar.png')
+      .expect(400);
+  });
+
+  it('uploads: customer ko uploads:create nahi milta (403)', async () => {
+    await api()
+      .post('/api/uploads')
+      .set('Authorization', `Bearer ${customerAccess}`)
+      .attach('file', Buffer.from('fake-image'), 'test.png')
+      .expect(403);
   });
 });

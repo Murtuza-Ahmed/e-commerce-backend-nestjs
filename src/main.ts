@@ -40,8 +40,8 @@ async function bootstrap() {
       .setTitle('Al-ucaaz API')
       .setDescription(
         'Phase 1 — Users: signup/signin, email OTP verification, ' +
-        'JWT access+refresh, forgot/reset password, forgot email, ' +
-        'dynamic RBAC (roles & permissions).',
+          'JWT access+refresh, forgot/reset password, forgot email, ' +
+          'dynamic RBAC (roles & permissions).',
       )
       .setVersion('1.0')
       .addBearerAuth(

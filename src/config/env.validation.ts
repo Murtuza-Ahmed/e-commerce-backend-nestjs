@@ -132,6 +132,28 @@ class EnvironmentVariables {
   @IsString()
   TWILIO_FROM?: string;
 
+  // ---- Cloudinary (image uploads) — na ho to upload endpoints 400 denge ----
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_CLOUD_NAME?: string;
+
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_API_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  CLOUDINARY_API_SECRET?: string;
+
+  // ---- NestJS Observe (tracing/monitoring) — na ho to telemetry nahi jayegi ----
+  @IsOptional()
+  @IsString()
+  OBSERVE_APP_KEY?: string;
+
+  @IsOptional()
+  @IsString()
+  OBSERVE_APP_SECRET?: string;
+
   // ---- Pehla super admin (seed ke liye) ----
   @IsEmail()
   SUPER_ADMIN_EMAIL!: string;
