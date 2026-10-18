@@ -11,6 +11,7 @@ import { User } from './entities/user.entity';
 import { Role } from '../rbac/entities/role.entity';
 import { AuthUser } from '../common/decorators';
 import { CloudinaryService } from '../uploads/cloudinary.service';
+import { assertImageBuffer } from '../uploads/image-type';
 import {
   comparePassword,
   hashPassword,
@@ -216,8 +217,14 @@ export class UsersService {
     return this.toSafeUser(await this.getUserOrFail(id));
   }
 
-  async updateProfile(id: string, dto: UpdateUserDto): Promise<SafeUser> {
+  async updateProfile(
+    id: string,
+    dto: UpdateUserDto,
+    avatar?: Express.Multer.File,
+  ): Promise<SafeUser> {
     const user = await this.getUserOrFail(id);
+    // Picture OPTIONAL: file ayi to sath lag jayegi, nahi ayi to sirf data.
+    if (avatar) await this.applyAvatar(user, avatar);
     if (dto.name !== undefined) user.name = dto.name.trim();
     if (dto.phone !== undefined) {
       const phone = dto.phone?.trim() || null;
@@ -244,8 +251,18 @@ export class UsersService {
 
   // ---------- avatar (self-service) ----------
 
-  async setAvatar(id: string, file: Express.Multer.File): Promise<SafeUser> {
-    const user = await this.getUserOrFail(id);
+  /**
+   * Pehle se loaded user entity par avatar lagao: Cloudinary upload +
+   * purani avatar saaf. Save caller karega (taake data + picture ek
+   * hi save me jayen). Picture OPTIONAL hai — caller decide karta hai
+   * ke file ayi to lagao, nahi ayi to chhodo.
+   */
+  private async applyAvatar(
+    user: User,
+    file: Express.Multer.File,
+  ): Promise<void> {
+    // Asal image check — magic bytes se (`.jfif` jaisi files bhi chalengi).
+    assertImageBuffer(file.buffer);
     const { url, publicId } = await this.cloudinary.uploadImage(file.buffer, {
       folder: 'al-ucaaz/avatars',
     });
@@ -257,6 +274,11 @@ export class UsersService {
     }
     user.avatarUrl = url;
     user.avatarPublicId = publicId;
+  }
+
+  async setAvatar(id: string, file: Express.Multer.File): Promise<SafeUser> {
+    const user = await this.getUserOrFail(id);
+    await this.applyAvatar(user, file);
     return this.toSafeUser(await this.users.save(user));
   }
 
@@ -298,7 +320,11 @@ export class UsersService {
     return this.toSafeUser(await this.getUserOrFail(id));
   }
 
-  async createByAdmin(dto: CreateUserDto, actor: AuthUser): Promise<SafeUser> {
+  async createByAdmin(
+    dto: CreateUserDto,
+    actor: AuthUser,
+    avatar?: Express.Multer.File,
+  ): Promise<SafeUser> {
     const role = await this.getRoleOrFail(dto.roleId);
     if (!actor.grantsAll && role.level >= actor.level) {
       throw new ForbiddenException(
@@ -321,6 +347,11 @@ export class UsersService {
       refreshTokenHash: null,
     });
     const saved = await this.users.save(user);
+    // Picture OPTIONAL: di to lag jayegi, nahi di to user waise hi ban gaya.
+    if (avatar) {
+      await this.applyAvatar(saved, avatar);
+      await this.users.save(saved);
+    }
     saved.role = role;
     return this.toSafeUser(saved);
   }
@@ -329,9 +360,12 @@ export class UsersService {
     id: string,
     dto: UpdateUserDto,
     actor: AuthUser,
+    avatar?: Express.Multer.File,
   ): Promise<SafeUser> {
     const user = await this.getUserOrFail(id);
     this.assertCanManage(actor, user);
+    // Picture OPTIONAL: file ayi to sath update, nahi ayi to sirf data.
+    if (avatar) await this.applyAvatar(user, avatar);
     if (dto.name !== undefined) user.name = dto.name.trim();
     if (dto.phone !== undefined) {
       const phone = dto.phone?.trim() || null;
@@ -382,6 +416,12 @@ export class UsersService {
     }
     const user = await this.getUserOrFail(id);
     this.assertCanManage(actor, user);
+    // Avatar orphan na rahe — user ke sath uski Cloudinary picture bhi saaf.
+    if (user.avatarPublicId) {
+      await this.cloudinary
+        .deleteImage(user.avatarPublicId)
+        .catch(() => undefined);
+    }
     await this.users.remove(user);
     return { message: 'User delete ho gaya.' };
   }
