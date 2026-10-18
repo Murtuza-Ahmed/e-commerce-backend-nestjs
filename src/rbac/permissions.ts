@@ -130,6 +130,13 @@ export const PERMISSIONS: PermissionDef[] = [
     action: 'delete',
     description: 'Uploaded image delete karna',
   },
+  // ---- audit trail (sirf super_admin) ----
+  {
+    name: 'audit:read',
+    resource: 'audit',
+    action: 'read',
+    description: 'Admin audit trail dekhna (kis ne kya kiya)',
+  },
 ];
 
 /** Admin role ko ye permissions kabhi nahi milengi. */
@@ -140,6 +147,7 @@ export const ADMIN_DENIED_PERMISSIONS = [
   'roles:delete',
   'roles:assign-permissions',
   'users:manage-roles',
+  'audit:read',
   'payments:update',
   'payments:delete',
 ];

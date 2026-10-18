@@ -87,3 +87,18 @@ export class RecoverEmailDto {
   @Length(6, 6)
   otp!: string;
 }
+
+/** Logged-in user apna email change karna chahe — pehle naye email par OTP. */
+export class RequestEmailChangeDto {
+  @IsEmail()
+  newEmail!: string;
+}
+
+export class ConfirmEmailChangeDto {
+  @IsEmail()
+  newEmail!: string;
+
+  @IsString()
+  @Length(6, 6)
+  otp!: string;
+}

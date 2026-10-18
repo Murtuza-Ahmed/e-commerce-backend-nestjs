@@ -11,6 +11,8 @@ import { Role } from './entities/role.entity';
 import { Permission } from './entities/permission.entity';
 import { User } from '../users/entities/user.entity';
 import { CreateRoleDto, UpdateRoleDto } from './dto/role.dto';
+import { AuditService } from '../audit/audit.service';
+import { AuthUser } from '../common/decorators';
 
 /**
  * Dynamic RBAC management — sirf super_admin ke paas iski permissions hain.
@@ -24,6 +26,7 @@ export class RbacService {
     @InjectRepository(Permission)
     private readonly permissions: Repository<Permission>,
     private readonly dataSource: DataSource,
+    private readonly audit: AuditService,
   ) {}
 
   listPermissions(): Promise<Permission[]> {
@@ -53,7 +56,7 @@ export class RbacService {
     });
   }
 
-  async createRole(dto: CreateRoleDto): Promise<Role> {
+  async createRole(dto: CreateRoleDto, actor: AuthUser): Promise<Role> {
     const exists = await this.roles.findOne({ where: { name: dto.name } });
     if (exists) {
       throw new ConflictException(`Role '${dto.name}' pehle se mojood hai.`);
@@ -66,10 +69,23 @@ export class RbacService {
       isSystem: false,
       permissions: await this.resolvePermissions(dto.permissionNames ?? []),
     });
-    return this.roles.save(role);
+    const saved = await this.roles.save(role);
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'roles.create',
+      targetType: 'role',
+      targetId: saved.id,
+      details: { name: saved.name, level: saved.level },
+    });
+    return saved;
   }
 
-  async updateRole(id: string, dto: UpdateRoleDto): Promise<Role> {
+  async updateRole(
+    id: string,
+    dto: UpdateRoleDto,
+    actor: AuthUser,
+  ): Promise<Role> {
     const role = await this.getRole(id);
     if (dto.name && dto.name !== role.name) {
       const exists = await this.roles.findOne({ where: { name: dto.name } });
@@ -84,10 +100,19 @@ export class RbacService {
     if (dto.permissionNames !== undefined) {
       role.permissions = await this.resolvePermissions(dto.permissionNames);
     }
-    return this.roles.save(role);
+    const saved = await this.roles.save(role);
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'roles.update',
+      targetType: 'role',
+      targetId: saved.id,
+      details: { name: saved.name },
+    });
+    return saved;
   }
 
-  async deleteRole(id: string): Promise<{ message: string }> {
+  async deleteRole(id: string, actor: AuthUser): Promise<{ message: string }> {
     const role = await this.getRole(id);
     if (role.isSystem) {
       throw new ForbiddenException('System role delete nahi ho sakta.');
@@ -100,6 +125,14 @@ export class RbacService {
         `Is role par ${inUse} user(s) hain — pehle unka role badlen.`,
       );
     }
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'roles.delete',
+      targetType: 'role',
+      targetId: role.id,
+      details: { name: role.name },
+    });
     await this.roles.remove(role);
     return { message: `Role '${role.name}' delete ho gaya.` };
   }
@@ -107,10 +140,20 @@ export class RbacService {
   async setRolePermissions(
     id: string,
     permissionNames: string[],
+    actor: AuthUser,
   ): Promise<Role> {
     const role = await this.getRole(id);
     role.permissions = await this.resolvePermissions(permissionNames);
-    return this.roles.save(role);
+    const saved = await this.roles.save(role);
+    await this.audit.log({
+      actorId: actor.id,
+      actorEmail: actor.email,
+      action: 'roles.set-permissions',
+      targetType: 'role',
+      targetId: saved.id,
+      details: { name: saved.name, permissions: permissionNames },
+    });
+    return saved;
   }
 
   private async resolvePermissions(names: string[]): Promise<Permission[]> {
