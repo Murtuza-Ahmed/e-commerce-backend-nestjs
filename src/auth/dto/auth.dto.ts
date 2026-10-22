@@ -18,7 +18,7 @@ export class SignupDto {
   email!: string;
 
   @IsOptional()
-  @IsPhoneNumber()
+  @IsPhoneNumber('PK')
   phone?: string;
 
   @IsString()
@@ -75,12 +75,12 @@ export class ResetPasswordDto {
 }
 
 export class ForgotEmailDto {
-  @IsPhoneNumber()
+  @IsPhoneNumber('PK')
   phone!: string;
 }
 
 export class RecoverEmailDto {
-  @IsPhoneNumber()
+  @IsPhoneNumber('PK')
   phone!: string;
 
   @IsString()
