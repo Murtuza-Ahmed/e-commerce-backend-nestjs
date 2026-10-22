@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { DataSource } from 'typeorm';
 import { AppModule, ObserveInstrument } from './app.module';
 
 async function bootstrap() {
@@ -10,6 +11,28 @@ async function bootstrap() {
     instrument: ObserveInstrument,
   });
   const config = app.get(ConfigService);
+
+  // DB pool safety net: Neon kabhi kabhi idle connection band kar deta hai;
+  // us client par 'error' aaye aur handler na ho to Node process gir jata
+  // hai. Yahan sirf log hoga — pool khud kharab connection hata kar
+  // agle request ke liye naya bana lega, backend nahi rukega.
+  try {
+    const dbLogger = new Logger('Database');
+    const pool = (
+      app.get(DataSource).driver as unknown as {
+        master?: {
+          on: (event: string, cb: (err: Error) => void) => void;
+        };
+      }
+    ).master;
+    pool?.on('error', (err) =>
+      dbLogger.error(
+        `Idle DB connection error (pool recover kar lega): ${err.message}`,
+      ),
+    );
+  } catch {
+    /* handler na bhi lage to app chalta rahe */
+  }
 
   // Saari routes /api ke neeche: GET /api/ (health), /api/api-docs (swagger)
   app.setGlobalPrefix('api');

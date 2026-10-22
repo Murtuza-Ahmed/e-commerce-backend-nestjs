@@ -17,4 +17,11 @@ export const AppDataSource = new DataSource({
   logging: process.env.DATABASE_LOGGING === 'true',
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [],
+  // app.module.ts jaisi pool settings (Neon idle-connection drops ke liye)
+  extra: {
+    max: 10,
+    keepAlive: true,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 30_000,
+  },
 });

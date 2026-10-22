@@ -18,7 +18,7 @@ export class CreateUserDto {
   email!: string;
 
   @IsOptional()
-  @IsPhoneNumber()
+  @IsPhoneNumber('PK')
   phone?: string;
 
   @IsString()
@@ -36,7 +36,7 @@ export class UpdateUserDto {
   name?: string;
 
   @IsOptional()
-  @IsPhoneNumber()
+  @IsPhoneNumber('PK')
   phone?: string;
 }
 

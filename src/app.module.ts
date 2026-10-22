@@ -58,6 +58,16 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
           synchronize: config.get<boolean>('DATABASE_SYNC') === true,
           logging: config.get<boolean>('DATABASE_LOGGING') === true,
           entities: [__dirname + '/**/*.entity{.ts,.js}'],
+          // pg pool: Neon idle connections band kar deta hai — keepAlive se
+          // mari hui connection pehle pakri jati hai, idle wali pool khud
+          // recycle kar leta hai, nayi connection time par banti hai.
+          extra: {
+            max: 10,
+            keepAlive: true,
+            idleTimeoutMillis: 30_000,
+            // Neon compute soya ho to pehli connection ko jaagne ka waqt do
+            connectionTimeoutMillis: 30_000,
+          },
         };
       },
     }),
@@ -77,4 +87,4 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
-export class AppModule {}
+export class AppModule { }
